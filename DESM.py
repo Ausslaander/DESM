@@ -3,18 +3,38 @@ import scipy as sp
 import numbers
 
 mu = 398600.45e+09  # Гравитационный параметр Земли
-R_m = 6371.0e+03  # Радиус Земли
+R_e = 6371.0e+03  # Радиус Земли
+J2 = 1.08262668e-3
 
 def _ODES(t, state_vector):
     x,y,z,vx,vy,vz = state_vector
     r = np.sqrt(x**2 + y**2 + z**2)
+
     dxdt = vx
     dydt = vy
     dzdt = vz
     dvxdt = -(mu*x)/(r**3)
     dvydt = -(mu*y)/(r**3)
     dvzdt = -(mu*z)/(r**3)
+
     return np.array([dxdt,dydt,dzdt, dvxdt,dvydt,dvzdt])
+
+def _J2_ODES(t, state_vector):
+    x, y, z, vx, vy, vz = state_vector
+    r = np.sqrt(x ** 2 + y ** 2 + z ** 2)
+    dxdt = vx
+    dydt = vy
+    dzdt = vz
+
+    factor = (3 / 2) * J2 * mu * (R_e ** 2) / (r ** 5)
+    z2_r2 = (z ** 2) / (r ** 2)
+
+    dvxdt = -(mu * x) / (r ** 3) + factor * x * (5 * z2_r2 - 1)
+    dvydt = -(mu * y) / (r ** 3) + factor * y * (5 * z2_r2 - 1)
+    dvzdt = -(mu * z) / (r ** 3) + factor * z * (5 * z2_r2 - 3)
+
+    return np.array([dxdt, dydt, dzdt, dvxdt, dvydt, dvzdt])
+
 
 
 def _validate_vector(name: str, value) -> list:
@@ -58,9 +78,12 @@ def get_solution(position: list, time_interval: list, speed_proj: list, use_J2: 
     t0, t1 = _validate_time_interval(time_interval)
 
     if use_J2:
-        pass
+        sol = sp.integrate.solve_ivp(_J2_ODES, (t0, t1), position + speed_proj, method = 'DOP853', rtol=1e-9, atol=1e-9)
+        x,y,z,vx,vy,vz = sol.y
+        t = sol.t
+        return [x,y,z,vx,vy,vz,t]
     else:
-        sol = sp.integrate.solve_ivp(_ODES, (t0, t1), position + speed_proj, method = 'DOP853')
+        sol = sp.integrate.solve_ivp(_ODES, (t0, t1), position + speed_proj, method = 'DOP853', rtol=1e-9, atol=1e-9)
         x,y,z,vx,vy,vz = sol.y
         t = sol.t
         return [x,y,z,vx,vy,vz,t]
