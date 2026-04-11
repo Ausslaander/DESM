@@ -5,6 +5,7 @@ import numbers
 mu = 398600.45e+09  # Гравитационный параметр Земли
 R_e = 6371.0e+03  # Радиус Земли
 J2 = 1.08262668e-3 # Коэффициент J2 для Земли, безразмерная величина, характеризующая отклонение от сферической формы
+J3 = -2.5327e-6
 
 def _ODES(t, state_vector):
     x,y,z,vx,vy,vz = state_vector
@@ -26,12 +27,30 @@ def _J2_ODES(t, state_vector):
     dydt = vy
     dzdt = vz
 
-    factor = (3 / 2) * J2 * mu * (R_e ** 2) / (r ** 5)
+    factorJ2 = (3 / 2) * J2 * mu * (R_e ** 2) / (r ** 5)
     z2_r2 = (z ** 2) / (r ** 2)
 
-    dvxdt = -(mu * x) / (r ** 3) + factor * x * (5 * z2_r2 - 1)
-    dvydt = -(mu * y) / (r ** 3) + factor * y * (5 * z2_r2 - 1)
-    dvzdt = -(mu * z) / (r ** 3) + factor * z * (5 * z2_r2 - 3)
+    dvxdt = -(mu * x) / (r ** 3) + factorJ2 * x * (5 * z2_r2 - 1)
+    dvydt = -(mu * y) / (r ** 3) + factorJ2 * y * (5 * z2_r2 - 1)
+    dvzdt = -(mu * z) / (r ** 3) + factorJ2 * z * (5 * z2_r2 - 3)
+
+    return np.array([dxdt, dydt, dzdt, dvxdt, dvydt, dvzdt])
+
+def _J3_ODES(t, state_vector):
+    x, y, z, vx, vy, vz = state_vector
+    r = np.sqrt(x ** 2 + y ** 2 + z ** 2)
+    dxdt = vx
+    dydt = vy
+    dzdt = vz
+
+    factorJ2 = (3 / 2) * J2 * mu * (R_e ** 2) / (r ** 5)
+    z2_r2 = (z ** 2) / (r ** 2)
+    factorJ3 = (5 / 2) * J3 * mu * (R_e ** 3) / (r ** 7)
+    z4_r2 = (z ** 4) / (r ** 2)
+
+    dvxdt = -(mu * x) / (r ** 3) + factorJ2 * x * (5 * z2_r2 - 1) + factorJ3 * (x * z * (7 * z2_r2 - 3) )
+    dvydt = -(mu * y) / (r ** 3) + factorJ2 * y * (5 * z2_r2 - 1) + factorJ3 * (y * z * (7 * z2_r2 - 3) )
+    dvzdt = -(mu * z) / (r ** 3) + factorJ2 * z * (5 * z2_r2 - 3) + factorJ3 * (6 * (z ** 2) - (3 / 2) * (r ** 2) - 7 * z4_r2 )
 
     return np.array([dxdt, dydt, dzdt, dvxdt, dvydt, dvzdt])
 
@@ -72,21 +91,28 @@ def _validate_time_interval(time_interval) -> tuple:
     return float(t0), float(t1)
 
 
-def get_solution(position: list, time_interval: list, speed_proj: list, use_J2: bool = False) -> list:
+def get_solution(position: list, time_interval: list, speed_proj: list, amendments: str = 'None',) -> list:
     position = _validate_vector("position", position)
     speed_proj = _validate_vector("speed_proj", speed_proj)
     t0, t1 = _validate_time_interval(time_interval)
 
-    if use_J2:
-        sol = sp.integrate.solve_ivp(_J2_ODES, (t0, t1), position + speed_proj, method = 'DOP853', rtol=1e-9, atol=1e-9)
-        x,y,z,vx,vy,vz = sol.y
+    if amendments == 'None':
+        sol = sp.integrate.solve_ivp(_ODES, (t0, t1), position + speed_proj, method='DOP853', rtol=1e-9, atol=1e-9)
+        x, y, z, vx, vy, vz = sol.y
         t = sol.t
-        return [x,y,z,vx,vy,vz,t]
-    else:
-        sol = sp.integrate.solve_ivp(_ODES, (t0, t1), position + speed_proj, method = 'DOP853', rtol=1e-9, atol=1e-9)
-        x,y,z,vx,vy,vz = sol.y
+        return [x, y, z, vx, vy, vz, t]
+    elif amendments == 'J2':
+        sol = sp.integrate.solve_ivp(_J2_ODES, (t0, t1), position + speed_proj, method='DOP853', rtol=1e-9, atol=1e-9)
+        x, y, z, vx, vy, vz = sol.y
         t = sol.t
-        return [x,y,z,vx,vy,vz,t]
+        return [x, y, z, vx, vy, vz, t]
+    elif amendments == 'J3':
+        sol = sp.integrate.solve_ivp(_J3_ODES, (t0, t1), position + speed_proj, method='DOP853', rtol=1e-9, atol=1e-9)
+        x, y, z, vx, vy, vz = sol.y
+        t = sol.t
+        return [x, y, z, vx, vy, vz, t]
+
+
 
 
 

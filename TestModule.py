@@ -63,7 +63,7 @@ def main():
     vy = np.sqrt(mu/(R_e+400e3)) + 1000
     vz = 0
     t = [0,7200]
-    solution = get_solution([x,y,z], t, [vx,vy,vz], use_J2=True)
+    solution = get_solution([x,y,z], t, [vx,vy,vz], amendments='J3')
     x, y, z, vx, vy, vz, t = solution
     point = nearest_point_to_equator(x, y, z)
     r = np.sqrt(x**2 + y**2 + z**2)
